@@ -1,0 +1,7 @@
+# Версии будут уточнены после сквозной проверки развёртывания.
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+docxtpl
+num2words
