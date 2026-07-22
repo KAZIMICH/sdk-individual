@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Коммерческие предложения</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#list">Рабочий ассистент</a>
+      <nav class="navigation" aria-label="Основная навигация">
+        <a class="navigation__link" href="#list" data-view-link="list">Список КП</a>
+        <a class="navigation__link" href="#create" data-view-link="create">Создать КП</a>
+      </nav>
+    </header>
+
+    <main class="page">
+      <section id="list-view" data-view="list">
+        <div class="page-heading" aria-labelledby="list-title">
+          <div>
+            <h1 id="list-title">Список КП</h1>
+            <p>Сохранённые коммерческие предложения.</p>
+          </div>
+          <a class="button button--primary" href="#create">Создать КП</a>
+        </div>
+        <section class="documents-card" aria-label="Сохранённые коммерческие предложения">
+          <label class="search-field" for="document-search">
+            <span>Поиск по заказчику или объекту</span>
+            <input id="document-search" type="search" placeholder="Начните вводить название" autocomplete="off">
+          </label>
+          <p id="documents-message" class="message" role="status" aria-live="polite">Загрузка списка…</p>
+          <div id="documents-table-container"></div>
+        </section>
+      </section>
+
+      <section id="create-view" data-view="create" hidden>
+        <div class="page-heading" aria-labelledby="create-title">
+          <div>
+            <a class="back-link" href="#list">← К списку КП</a>
+            <h1 id="create-title">Создание КП</h1>
+            <p>Заполните данные для нового коммерческого предложения.</p>
+          </div>
+        </div>
+        <form id="document-form" class="form-card" novalidate>
+          <fieldset>
+            <legend>Заказчик</legend>
+            <div class="form-grid">
+              <label class="form-field form-field--wide">Заказчик
+                <select id="customer-id" name="customer_id" required><option value="">Выберите заказчика</option></select>
+                <span class="field-error" data-error-for="customer_id"></span>
+              </label>
+              <label class="form-field">Руководитель
+                <input id="customer-director" type="text" readonly>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Объект проекта</legend>
+            <div class="form-grid">
+              <label class="form-field form-field--wide">Объект
+                <select id="object-id" name="object_id" required><option value="">Выберите объект</option></select>
+                <span class="field-error" data-error-for="object_id"></span>
+              </label>
+              <label class="form-field">IMO
+                <input id="object-imo" type="text" readonly>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Параметры предложения</legend>
+            <div class="form-grid">
+              <label class="form-field form-field--wide">Тема
+                <input name="subject" type="text" required>
+                <span class="field-error" data-error-for="subject"></span>
+              </label>
+              <label class="form-field">Сумма, ₽
+                <input name="amount" type="number" min="0.01" step="0.01" required>
+                <span class="field-error" data-error-for="amount"></span>
+              </label>
+              <label class="form-field">Срок разработки, дней
+                <input name="lead_time_days" type="number" min="1" step="1" required>
+                <span class="field-error" data-error-for="lead_time_days"></span>
+              </label>
+              <label class="form-field">Срок действия, дней
+                <input name="validity_period_days" type="number" min="1" step="1" required>
+                <span class="field-error" data-error-for="validity_period_days"></span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Состав работ</legend>
+            <div id="work-items" class="work-items"></div>
+            <span class="field-error" data-error-for="work_items"></span>
+            <button id="add-work-item" class="button button--secondary" type="button">Добавить строку</button>
+          </fieldset>
+
+          <div class="form-actions">
+            <button id="submit-document" class="button button--primary" type="submit">Создать документ</button>
+            <p id="form-message" class="message" role="status" aria-live="polite"></p>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

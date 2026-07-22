@@ -8,7 +8,7 @@ from app.models import initialize_database
 from app.repositories.customers import get_customer, list_customers
 from app.repositories.errors import RecordNotFoundError
 from app.repositories.project_objects import get_project_object, list_project_objects
-from scripts.init_db import seed_reference_data
+from scripts.init_db import SEED_CUSTOMERS, SEED_PROJECT_OBJECTS, seed_reference_data
 
 
 class ReferenceRepositoriesTests(unittest.TestCase):
@@ -24,13 +24,16 @@ class ReferenceRepositoriesTests(unittest.TestCase):
     def test_lists_customers_and_returns_one_customer(self) -> None:
         customers = list_customers(self.database_path)
 
-        self.assertEqual([customer.name for customer in customers], ["ООО Альфа", "ООО Бета"])
+        self.assertEqual(
+            [customer.name for customer in customers],
+            sorted(customer[0] for customer in SEED_CUSTOMERS),
+        )
         self.assertEqual(get_customer(customers[0].id, self.database_path), customers[0])
 
     def test_lists_objects_and_returns_one_object(self) -> None:
         project_objects = list_project_objects(self.database_path)
 
-        self.assertEqual(len(project_objects), 3)
+        self.assertEqual(len(project_objects), len(SEED_PROJECT_OBJECTS))
         self.assertEqual(
             get_project_object(project_objects[0].id, self.database_path), project_objects[0]
         )
