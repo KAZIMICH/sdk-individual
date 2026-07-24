@@ -7,10 +7,28 @@ const submitButton = document.querySelector("#submit-document");
 const workItems = document.querySelector("#work-items");
 const customerSelect = document.querySelector("#customer-id");
 const objectSelect = document.querySelector("#object-id");
+const commandForm = document.querySelector("#command-form");
+const commandInput = document.querySelector("#command-input");
+const chatHistory = document.querySelector("#chat-history");
+const voiceCommandButton = document.querySelector("#voice-command-button");
+const voiceResponseToggle = document.querySelector("#voice-response-toggle");
+const helpButton = document.querySelector("#help-button");
+const helpDialog = document.querySelector("#help-dialog");
+const helpCommands = document.querySelector("#help-commands");
 
 let searchTimer;
 let customers = [];
 let projectObjects = [];
+let isListening = false;
+let isVoiceResponseEnabled = false;
+let commandAliases = [];
+let commandAliasesPromise;
+let commandAliasesLoaded = false;
+let commandAliasesLoadError = false;
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const speechRecognition = SpeechRecognition ? new SpeechRecognition() : null;
+const speechSynthesisSupported = "speechSynthesis" in window;
 
 const statusLabels = { pending: "Ожидает генерации", generated: "Сформирован", error: "Ошибка" };
 
@@ -25,8 +43,269 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ru-RU");
 }
 
+function addChatMessage(text, role, shouldSpeak = false) {
+  const message = document.createElement("div");
+  message.className = `chat-message chat-message--${role}`;
+  const paragraph = document.createElement("p");
+  paragraph.textContent = text;
+  message.append(paragraph);
+  chatHistory.append(message);
+  message.scrollIntoView({ block: "nearest" });
+  if (shouldSpeak) speakResponse(text);
+}
+
+function addChatLinkMessage(text, url, linkLabel) {
+  const message = document.createElement("div");
+  message.className = "chat-message chat-message--agent";
+  const paragraph = document.createElement("p");
+  paragraph.textContent = text;
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = linkLabel;
+  message.append(paragraph, link);
+  chatHistory.append(message);
+  message.scrollIntoView({ block: "nearest" });
+}
+
+function speakResponse(text) {
+  if (!isVoiceResponseEnabled || !speechSynthesisSupported) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "ru-RU";
+  window.speechSynthesis.speak(utterance);
+}
+
+function setVoiceResponseState(enabled) {
+  isVoiceResponseEnabled = enabled && speechSynthesisSupported;
+  voiceResponseToggle.setAttribute("aria-pressed", String(isVoiceResponseEnabled));
+  const label = isVoiceResponseEnabled ? "Озвучка: включена" : "Озвучка: выключена";
+  voiceResponseToggle.textContent = isVoiceResponseEnabled ? "🔊" : "🔇";
+  voiceResponseToggle.setAttribute("aria-label", label);
+  voiceResponseToggle.title = label;
+}
+
+function submitCommand(command) {
+  const normalizedCommand = command.trim();
+  if (!normalizedCommand) return;
+  addChatMessage(normalizedCommand, "user");
+  commandInput.value = "";
+  if (!commandAliasesLoaded) {
+    const message = commandAliasesLoadError
+      ? "Не удалось загрузить команды ассистента. Попробуйте обновить страницу."
+      : "Команды ассистента загружаются. Повторите команду через секунду.";
+    addChatMessage(message, "agent", true);
+    return;
+  }
+  const commandAlias = getCommandAlias(normalizedCommand);
+  const searchCommand = getSearchCommand(normalizedCommand);
+  if (searchCommand) {
+    openSearch(searchCommand);
+    return;
+  }
+  if (commandAlias?.action_code === "create_document") {
+    addChatMessage("Открываю форму создания коммерческого предложения.", "agent", true);
+    window.location.hash = "#create";
+    showView();
+    return;
+  }
+  if (commandAlias?.action_code === "open_mail") {
+    openMail(commandAlias);
+    return;
+  }
+  if (commandAlias?.action_code === "open_site") {
+    openWebsite(commandAlias);
+    return;
+  }
+  addChatMessage("Пока я умею создавать КП. Скажите «Создай КП».", "agent", true);
+}
+
+function normalizeCommand(command) {
+  return command
+    .trim()
+    .toLocaleLowerCase("ru-RU")
+    .replace(/[!?.;,:«»„“]/g, "")
+    .replace(/\s+/g, "");
+}
+
+function getCommandAlias(command) {
+  const normalizedPhrase = normalizeCommand(command);
+  return commandAliases.find((alias) => alias.normalized_phrase === normalizedPhrase);
+}
+
+function getSearchCommand(command) {
+  const sourceCommand = command.trim();
+  const normalizedCommand = sourceCommand.toLocaleLowerCase("ru-RU");
+  const searchAlias = commandAliases
+    .filter((alias) => alias.action_code === "web_search" && alias.requires_query)
+    .sort((first, second) => second.phrase.length - first.phrase.length)
+    .find((alias) => {
+      const prefix = alias.phrase.toLocaleLowerCase("ru-RU");
+      return normalizedCommand === prefix || normalizedCommand.startsWith(`${prefix} `) || normalizedCommand.startsWith(`${prefix},`);
+    });
+  if (!searchAlias) return null;
+
+  const query = sourceCommand
+    .slice(searchAlias.phrase.length)
+    .replace(/^[\s,.:;!?—-]+/, "")
+    .trim();
+  return { alias: searchAlias, query };
+}
+
+function loadCommandAliases() {
+  if (commandAliasesPromise) return commandAliasesPromise;
+  commandAliasesPromise = fetch("/api/assistant/commands")
+    .then((response) => {
+      if (!response.ok) throw new Error("Commands are unavailable");
+      return response.json();
+    })
+    .then((commands) => {
+      commandAliases = commands.filter((command) => ["create_document", "open_mail", "web_search", "open_site"].includes(command.action_code));
+      commandAliasesLoaded = true;
+    })
+    .catch((error) => {
+      commandAliasesLoadError = true;
+      throw error;
+    });
+  return commandAliasesPromise;
+}
+
+function openMail(commandAlias) {
+  const targetUrl = getSecureMailUrl(commandAlias);
+  if (!targetUrl) {
+    addChatMessage("Почтовый ящик сейчас недоступен.", "agent", true);
+    return;
+  }
+  addChatMessage("Открываю почтовый ящик.", "agent", true);
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+  addChatLinkMessage("Если браузер заблокировал новую вкладку, используйте ссылку:", targetUrl, "Открыть почту");
+}
+
+function getSecureMailUrl(commandAlias) {
+  if (commandAlias.action_code !== "open_mail" || !commandAlias.target_url) return null;
+  try {
+    const url = new URL(commandAlias.target_url);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function openWebsite(commandAlias) {
+  const targetUrl = getSecureWebsiteUrl(commandAlias);
+  if (!targetUrl) {
+    addChatMessage("Сайт сейчас недоступен.", "agent", true);
+    return;
+  }
+  const websiteName = commandAlias.website_name || "сайт";
+  addChatMessage(`Открываю: ${websiteName}.`, "agent", true);
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+  addChatLinkMessage(
+    "Если браузер заблокировал новую вкладку, используйте ссылку:",
+    targetUrl,
+    `Открыть ${websiteName}`
+  );
+}
+
+function getSecureWebsiteUrl(commandAlias) {
+  if (commandAlias.action_code !== "open_site" || !commandAlias.website_name || !commandAlias.target_url) return null;
+  try {
+    const url = new URL(commandAlias.target_url);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function openSearch(searchCommand) {
+  if (!searchCommand.query) {
+    addChatMessage("Что найти? Например: «Найди правила классификации судов».", "agent", true);
+    return;
+  }
+  const targetUrl = getSecureSearchUrl(searchCommand.alias, searchCommand.query);
+  if (!targetUrl) {
+    addChatMessage("Поиск сейчас недоступен.", "agent", true);
+    return;
+  }
+  addChatMessage(`Ищу: ${searchCommand.query}`, "agent", true);
+  window.open(targetUrl, "_blank", "noopener,noreferrer");
+  addChatLinkMessage("Если браузер заблокировал новую вкладку, используйте ссылку:", targetUrl, "Открыть поиск");
+}
+
+function getSecureSearchUrl(commandAlias, query) {
+  if (commandAlias.action_code !== "web_search" || !commandAlias.requires_query || !commandAlias.target_url) return null;
+  try {
+    const url = new URL(commandAlias.target_url);
+    return url.protocol === "https:" ? `${url.href}${encodeURIComponent(query)}` : null;
+  } catch {
+    return null;
+  }
+}
+
+function renderHelpCommands() {
+  helpCommands.replaceChildren();
+  if (!commandAliases.length) {
+    const item = document.createElement("li");
+    item.textContent = "Доступные команды пока не загружены.";
+    helpCommands.append(item);
+    return;
+  }
+  commandAliases.forEach((command) => {
+    const item = document.createElement("li");
+    item.textContent = command.phrase;
+    helpCommands.append(item);
+  });
+}
+
+function openHelp() {
+  helpDialog.showModal();
+  loadCommandAliases()
+    .then(renderHelpCommands)
+    .catch(() => {
+      helpCommands.replaceChildren();
+      const item = document.createElement("li");
+      item.textContent = "Не удалось загрузить доступные команды.";
+      helpCommands.append(item);
+    });
+}
+
+function setListeningState(listening) {
+  isListening = listening;
+  voiceCommandButton.classList.toggle("button--listening", listening);
+  voiceCommandButton.setAttribute("aria-pressed", String(listening));
+  voiceCommandButton.setAttribute(
+    "aria-label",
+    listening ? "Остановить голосовой ввод" : "Начать голосовой ввод"
+  );
+  voiceCommandButton.textContent = listening ? "■" : "🎙";
+}
+
+function speechErrorMessage(error) {
+  if (error === "not-allowed" || error === "service-not-allowed") {
+    return "Доступ к микрофону запрещён. Разрешите его в настройках браузера.";
+  }
+  if (error === "no-speech") {
+    return "Речь не распознана. Попробуйте сказать команду ещё раз.";
+  }
+  return "Голосовой ввод сейчас недоступен. Используйте текстовую команду.";
+}
+
+if (speechRecognition) {
+  speechRecognition.lang = "ru-RU";
+  speechRecognition.interimResults = false;
+  speechRecognition.continuous = false;
+  speechRecognition.onstart = () => setListeningState(true);
+  speechRecognition.onresult = (event) => {
+    submitCommand(event.results[0][0].transcript);
+  };
+  speechRecognition.onerror = (event) => addChatMessage(speechErrorMessage(event.error), "agent");
+  speechRecognition.onend = () => setListeningState(false);
+}
+
 function showView() {
-  const view = window.location.hash === "#create" ? "create" : "list";
+  const hashView = window.location.hash.slice(1);
+  const view = ["assistant", "list", "create"].includes(hashView) ? hashView : "assistant";
   document.querySelectorAll("[data-view]").forEach((element) => { element.hidden = element.dataset.view !== view; });
   document.querySelectorAll("[data-view-link]").forEach((element) => {
     const active = element.dataset.viewLink === view;
@@ -35,6 +314,7 @@ function showView() {
   });
   if (view === "list") loadDocuments();
   if (view === "create") loadReferences();
+  if (view === "assistant") loadCommandAliases().catch(() => {});
 }
 
 function renderDocuments(documents) {
@@ -112,6 +392,42 @@ objectSelect.addEventListener("change", () => setReferenceFields(objectSelect, p
 searchInput.addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadDocuments, 300); });
 searchInput.addEventListener("keydown", (event) => { if (event.key === "Enter") { clearTimeout(searchTimer); loadDocuments(); } });
 
+commandForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  submitCommand(commandInput.value);
+});
+
+voiceCommandButton.addEventListener("click", () => {
+  if (!speechRecognition) {
+    addChatMessage("Этот браузер не поддерживает голосовой ввод. Используйте текстовую команду.", "agent");
+    return;
+  }
+  if (isListening) {
+    speechRecognition.stop();
+    return;
+  }
+  try {
+    speechRecognition.start();
+  } catch {
+    addChatMessage("Не удалось запустить голосовой ввод. Используйте текстовую команду.", "agent");
+  }
+});
+
+voiceResponseToggle.addEventListener("click", () => {
+  setVoiceResponseState(!isVoiceResponseEnabled);
+  if (!speechSynthesisSupported) {
+    addChatMessage("Этот браузер не поддерживает голосовую озвучку.", "agent");
+  }
+});
+
+helpButton.addEventListener("click", openHelp);
+document.querySelectorAll("[data-close-help]").forEach((button) => {
+  button.addEventListener("click", () => helpDialog.close());
+});
+helpDialog.addEventListener("click", (event) => {
+  if (event.target === helpDialog) helpDialog.close();
+});
+
 documentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearFieldErrors();
@@ -156,4 +472,5 @@ documentForm.addEventListener("submit", async (event) => {
 
 window.addEventListener("hashchange", showView);
 addWorkItem();
+setVoiceResponseState(true);
 showView();

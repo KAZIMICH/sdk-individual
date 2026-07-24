@@ -48,6 +48,9 @@ body {
 .navigation__link { border-bottom: 2px solid transparent; padding: 21px 0 19px; }
 .navigation__link--active { border-color: var(--corp-orange); font-weight: 700; }
 .navigation__link--disabled { cursor: not-allowed; opacity: .58; }
+.topbar-actions { align-items: center; display: flex; gap: 8px; }
+.topbar-icon-button { background: transparent; border: 1px solid #fff; border-radius: 50%; color: #fff; cursor: pointer; font-size: 16px; font-weight: 700; height: 30px; padding: 0; width: 30px; }
+.topbar-icon-button:hover, .topbar-icon-button:focus-visible { background: #fff; color: var(--corp-blue); }
 
 .page {
     margin: 0 auto;
@@ -58,6 +61,36 @@ body {
 .page-heading { align-items: center; display: flex; justify-content: space-between; margin-bottom: 24px; }
 h1 { font-size: 28px; margin: 0 0 6px; }
 .page-heading p { color: var(--text-muted); margin: 0; }
+
+.assistant-heading { margin: 48px auto 24px; max-width: 720px; text-align: center; }
+.assistant-heading p { color: var(--text-muted); margin: 0; }
+.assistant-heading h1 { font-size: 32px; margin: 8px 0; }
+.assistant-note { font-size: 14px; line-height: 1.45; margin-top: 16px !important; }
+.eyebrow { color: var(--corp-blue) !important; font-size: 14px; font-weight: 700; text-transform: uppercase; }
+.chat-card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-card); box-shadow: var(--shadow); margin: 0 auto; max-width: 720px; padding: 24px; }
+.chat-message { border-radius: var(--radius-input); max-width: 85%; padding: 14px 16px; }
+.chat-message p { margin: 0; }
+.chat-message--agent { background: var(--bg-muted); }
+.chat-message--user { background: var(--corp-blue); color: #fff; margin-left: auto; }
+.chat-history { display: grid; gap: 12px; }
+.command-form { display: flex; gap: 12px; margin-top: 24px; }
+.command-form .button { flex: 0 0 auto; }
+.button--microphone { background: #fff; border: 1px solid var(--corp-blue); color: var(--corp-blue); font-size: 18px; min-width: 44px; }
+.button--listening { background: var(--corp-orange); border-color: var(--corp-orange); color: #fff; }
+.visually-hidden { height: 1px; margin: -1px; overflow: hidden; position: absolute; width: 1px; clip: rect(0, 0, 0, 0); }
+.help-dialog { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow); color: var(--text-main); max-width: 620px; padding: 0; width: calc(100% - 40px); }
+.help-dialog::backdrop { background: rgba(17, 50, 91, .45); }
+.help-dialog__header, .help-dialog__footer { align-items: center; display: flex; justify-content: space-between; padding: 20px 24px; }
+.help-dialog__header { border-bottom: 1px solid var(--border-light); }
+.help-dialog__header h2 { font-size: 22px; margin: 0; }
+.help-dialog__close { background: transparent; border: 0; color: var(--text-muted); cursor: pointer; font-size: 28px; line-height: 1; padding: 0 4px; }
+.help-dialog__content { padding: 24px; }
+.help-dialog__content h3 { font-size: 16px; margin: 24px 0 10px; }
+.help-dialog__content h3:first-of-type { margin-top: 20px; }
+.help-dialog__content p, .help-dialog__content ul { line-height: 1.5; margin: 0; }
+.help-dialog__content ul { padding-left: 20px; }
+.help-commands { color: var(--corp-blue); font-weight: 600; }
+.help-dialog__footer { border-top: 1px solid var(--border-light); justify-content: flex-end; }
 
 .documents-card {
     background: var(--bg-card);
@@ -130,6 +163,11 @@ legend { font-size: 18px; font-weight: 600; margin-bottom: 16px; padding: 0; }
     .navigation__link { padding: 8px 0 12px; }
     .page { padding-top: 28px; }
     .page-heading { align-items: flex-start; flex-direction: column; gap: 16px; }
+    .assistant-heading { margin-top: 24px; text-align: left; }
+    .assistant-heading h1 { font-size: 28px; }
+    .chat-card { padding: 16px; }
+    .command-form { align-items: stretch; flex-direction: column; }
+    .command-form .button { width: 100%; }
     .documents-card { padding: 16px; }
     .form-card { padding: 16px; }
     .work-item { grid-template-columns: 1fr; }

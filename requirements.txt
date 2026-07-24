@@ -3,6 +3,7 @@ fastapi
 uvicorn[standard]
 jinja2
 python-multipart
+python-dotenv
 docxtpl
 num2words
 httpx

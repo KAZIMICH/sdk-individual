@@ -28,7 +28,15 @@ class DatabaseSchemaTests(unittest.TestCase):
             }
 
         self.assertTrue(
-            {"customers", "project_objects", "documents", "document_work_items"}
+            {
+                "customers",
+                "project_objects",
+                "documents",
+                "document_work_items",
+                "assistant_websites",
+                "assistant_command_aliases",
+                "assistant_actions",
+            }
             <= table_names
         )
 
@@ -38,6 +46,88 @@ class DatabaseSchemaTests(unittest.TestCase):
 
         referenced_tables = {row["table"] for row in foreign_keys}
         self.assertEqual(referenced_tables, {"customers", "project_objects"})
+
+    def test_site_command_requires_existing_website(self) -> None:
+        with get_connection(self.database_path) as connection:
+            website_id = connection.execute(
+                "INSERT INTO assistant_websites (name, target_url) VALUES (?, ?)",
+                ("Test site", "https://example.com/"),
+            ).lastrowid
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """
+                    INSERT INTO assistant_command_aliases (
+                        phrase, normalized_phrase, action_code
+                    ) VALUES (?, ?, ?)
+                    """,
+                    ("Open test site", "opentestsite", "open_site"),
+                )
+
+            connection.execute(
+                """
+                INSERT INTO assistant_command_aliases (
+                    phrase, normalized_phrase, action_code, website_id
+                ) VALUES (?, ?, ?, ?)
+                """,
+                ("Open test site", "opentestsite", "open_site", website_id),
+            )
+
+    def test_migrates_existing_assistant_settings_for_search(self) -> None:
+        legacy_database_path = Path(self.temp_directory.name) / "legacy.db"
+        with get_connection(legacy_database_path) as connection:
+            connection.executescript(
+                """
+                CREATE TABLE assistant_command_aliases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    phrase TEXT NOT NULL,
+                    normalized_phrase TEXT NOT NULL UNIQUE,
+                    action_code TEXT NOT NULL CHECK (action_code IN ('create_document', 'open_mail', 'web_search')),
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
+                );
+                INSERT INTO assistant_command_aliases (phrase, normalized_phrase, action_code)
+                VALUES ('Создай КП', 'создайкп', 'create_document');
+                INSERT INTO assistant_command_aliases (phrase, normalized_phrase, action_code)
+                VALUES ('Найди', 'найди', 'web_search');
+
+                CREATE TABLE assistant_actions (
+                    action_code TEXT PRIMARY KEY CHECK (action_code IN ('create_document', 'open_mail', 'web_search')),
+                    target_url TEXT,
+                    requires_query INTEGER NOT NULL DEFAULT 0 CHECK (requires_query IN (0, 1)),
+                    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1))
+                );
+                INSERT INTO assistant_actions (action_code, target_url)
+                VALUES ('open_mail', 'https://e.mail.ru/');
+                INSERT INTO assistant_actions (action_code, target_url, requires_query)
+                VALUES ('web_search', 'https://yandex.ru/search/?text=', 1);
+                """
+            )
+
+        initialize_database(legacy_database_path)
+
+        with get_connection(legacy_database_path) as connection:
+            alias = connection.execute(
+                "SELECT phrase, action_code, website_id FROM assistant_command_aliases ORDER BY id"
+            ).fetchall()
+            schema = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'assistant_command_aliases'"
+            ).fetchone()["sql"]
+            action = connection.execute(
+                "SELECT target_url, requires_query FROM assistant_actions WHERE action_code = 'open_mail'"
+            ).fetchone()
+            action_schema = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'assistant_actions'"
+            ).fetchone()["sql"]
+
+        self.assertEqual(
+            [(row["phrase"], row["action_code"], row["website_id"]) for row in alias],
+            [("Создай КП", "create_document", None), ("Найди", "web_search", None)],
+        )
+        self.assertIn("open_site", schema)
+        self.assertIn("website_id", schema)
+        self.assertEqual((action["target_url"], action["requires_query"]), ("https://e.mail.ru/", 0))
+        self.assertIn("open_site", action_schema)
+        self.assertIn("requires_query", action_schema)
 
     def test_work_items_are_deleted_with_document(self) -> None:
         with get_connection(self.database_path) as connection:

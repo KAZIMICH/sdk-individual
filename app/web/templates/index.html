@@ -3,19 +3,45 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Коммерческие предложения</title>
+    <title>Рабочий ассистент</title>
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#list">Рабочий ассистент</a>
+      <a class="brand" href="#assistant">Рабочий ассистент</a>
       <nav class="navigation" aria-label="Основная навигация">
+        <a class="navigation__link" href="#assistant" data-view-link="assistant">Ассистент</a>
         <a class="navigation__link" href="#list" data-view-link="list">Список КП</a>
-        <a class="navigation__link" href="#create" data-view-link="create">Создать КП</a>
       </nav>
+      <div class="topbar-actions">
+        <button id="voice-response-toggle" class="topbar-icon-button" type="button" aria-pressed="true" aria-label="Озвучка: включена" title="Озвучка: включена">🔊</button>
+        <button id="help-button" class="topbar-icon-button" type="button" aria-haspopup="dialog" aria-controls="help-dialog" aria-label="Открыть справку">?</button>
+      </div>
     </header>
 
     <main class="page">
+      <section id="assistant-view" data-view="assistant">
+        <div class="assistant-heading" aria-labelledby="assistant-title">
+          <p class="eyebrow">Рабочий ассистент</p>
+          <h1 id="assistant-title">Здравствуйте! Чем помочь?</h1>
+          <p>Я помогу перейти к нужному рабочему действию.</p>
+          <p class="assistant-note">Голосовой ввод работает в тестовом режиме на встроенной технологии распознавания речи браузера. Качество распознавания может быть нестабильным; в дальнейшей разработке будет использоваться более совершенное решение.</p>
+        </div>
+        <section class="chat-card" aria-label="Диалог с ассистентом">
+          <div id="chat-history" class="chat-history" aria-live="polite">
+            <div class="chat-message chat-message--agent">
+              <p>Готов помочь. Выберите действие ниже или введите команду.</p>
+            </div>
+          </div>
+          <form id="command-form" class="command-form">
+            <label class="visually-hidden" for="command-input">Введите команду</label>
+            <input id="command-input" type="text" placeholder="Введите команду" autocomplete="off" required>
+            <button id="voice-command-button" class="button button--microphone" type="button" aria-label="Начать голосовой ввод" aria-pressed="false">🎙</button>
+            <button class="button button--primary" type="submit">Отправить</button>
+          </form>
+        </section>
+      </section>
+
       <section id="list-view" data-view="list">
         <div class="page-heading" aria-labelledby="list-title">
           <div>
@@ -105,6 +131,28 @@
         </form>
       </section>
     </main>
+
+    <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
+      <div class="help-dialog__header">
+        <h2 id="help-title">Справка</h2>
+        <button class="help-dialog__close" type="button" data-close-help aria-label="Закрыть справку">×</button>
+      </div>
+      <div class="help-dialog__content">
+        <p>Рабочий ассистент помогает создавать КП, открывать почту, поиск и настроенные сайты.</p>
+        <h3>Как пользоваться</h3>
+        <ul>
+          <li>Введите команду текстом или нажмите кнопку микрофона и произнесите её.</li>
+          <li>Озвучка ответов включена по умолчанию и отключается ссылкой в чате.</li>
+          <li>Голосовой ввод использует тестовое распознавание речи браузера, поэтому может работать неточно.</li>
+          <li>Для поиска скажите или введите «Найди &lt;запрос&gt;». Ассистент откроет поисковую страницу, но не читает и не анализирует выдачу.</li>
+          <li>Сайты открываются только из настроенного белого списка. Например: «Открой РС», «Открой РМРС», «Открой РКО», «Открой Adomat Marine» или «Открой Fleetphoto».</li>
+          <li>Полный список ниже загружается из текущих настроек ассистента.</li>
+        </ul>
+        <h3>Доступные команды</h3>
+        <ul id="help-commands" class="help-commands" aria-live="polite"><li>Загрузка команд…</li></ul>
+      </div>
+      <div class="help-dialog__footer"><button class="button button--primary" type="button" data-close-help>Закрыть</button></div>
+    </dialog>
 
     <script src="/static/app.js" defer></script>
   </body>

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from app.database import get_connection
 from app.main import app
 from app.models import initialize_database
 from scripts.init_db import SEED_CUSTOMERS, SEED_PROJECT_OBJECTS, seed_reference_data
@@ -55,6 +56,62 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(project_objects.json()), len(SEED_PROJECT_OBJECTS))
         self.assertEqual(project_object.status_code, 200)
         self.assertIn("imo", project_object.json())
+
+    def test_returns_active_assistant_command_aliases(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/api/assistant/commands")
+
+        self.assertEqual(response.status_code, 200)
+        commands = response.json()
+        self.assertTrue(commands)
+        self.assertEqual(
+            {command["action_code"] for command in commands},
+            {"create_document", "open_mail", "web_search", "open_site"},
+        )
+        self.assertTrue(all(command["normalized_phrase"] for command in commands))
+        mail_command = next(command for command in commands if command["action_code"] == "open_mail")
+        self.assertEqual(mail_command["target_url"], "https://e.mail.ru/")
+        self.assertFalse(mail_command["requires_query"])
+        search_command = next(command for command in commands if command["action_code"] == "web_search")
+        self.assertEqual(search_command["target_url"], "https://yandex.ru/search/?text=")
+        self.assertTrue(search_command["requires_query"])
+        rko_command = next(
+            command
+            for command in commands
+            if command["normalized_phrase"] == "откройрко"
+        )
+        self.assertEqual(rko_command["website_name"], "Российское классификационное общество (РКО)")
+        self.assertEqual(rko_command["target_url"], "https://rfclass.ru/")
+
+    def test_does_not_return_commands_for_inactive_action(self) -> None:
+        with get_connection(self.database_path) as connection:
+            connection.execute(
+                "UPDATE assistant_actions SET is_active = 0 WHERE action_code = 'open_mail'"
+            )
+
+        with TestClient(app) as client:
+            response = client.get("/api/assistant/commands")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {command["action_code"] for command in response.json()},
+            {"create_document", "web_search", "open_site"},
+        )
+
+    def test_does_not_return_commands_for_inactive_website(self) -> None:
+        with get_connection(self.database_path) as connection:
+            connection.execute(
+                "UPDATE assistant_websites SET is_active = 0 WHERE target_url = 'https://rfclass.ru/'"
+            )
+
+        with TestClient(app) as client:
+            response = client.get("/api/assistant/commands")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(
+            "откройрко",
+            {command["normalized_phrase"] for command in response.json()},
+        )
 
     def test_unknown_reference_returns_not_found(self) -> None:
         with TestClient(app) as client:

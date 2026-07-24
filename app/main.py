@@ -8,11 +8,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.config import (
+    APP_NAME,
     DATABASE_PATH,
     DOCUMENT_TEMPLATES_DIR,
     GENERATED_DOCUMENTS_DIR,
+    HOST,
+    PORT,
     PROJECT_ROOT,
 )
+from app.repositories.assistant_commands import list_active_command_aliases
 from app.repositories.customers import get_customer, list_customers
 from app.repositories.documents import WorkItemInput, create_document, list_documents
 from app.repositories.errors import RecordNotFoundError
@@ -25,7 +29,7 @@ from app.services.validation import (
 )
 
 
-app = FastAPI(title="Рабочий ассистент")
+app = FastAPI(title=APP_NAME)
 app.state.database_path = DATABASE_PATH
 app.state.document_template_path = DOCUMENT_TEMPLATES_DIR / "CP_ver.01.docx"
 app.state.generated_documents_directory = GENERATED_DOCUMENTS_DIR
@@ -68,6 +72,15 @@ def web_application() -> FileResponse:
 def customers(request: Request) -> list[dict[str, object]]:
     """Вернуть справочник заказчиков."""
     return [asdict(customer) for customer in list_customers(request.app.state.database_path)]
+
+
+@app.get("/api/assistant/commands")
+def assistant_commands(request: Request) -> list[dict[str, object]]:
+    """Вернуть активные варианты разрешённых команд ассистента."""
+    return [
+        asdict(command)
+        for command in list_active_command_aliases(request.app.state.database_path)
+    ]
 
 
 @app.get("/api/customers/{customer_id}")
@@ -155,4 +168,4 @@ def generate_document_file(document_id: int, request: Request) -> dict[str, obje
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host=HOST, port=PORT)
